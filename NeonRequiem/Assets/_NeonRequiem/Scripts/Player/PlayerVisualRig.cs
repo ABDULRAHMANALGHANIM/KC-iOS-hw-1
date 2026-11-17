@@ -193,10 +193,7 @@ namespace NeonRequiem.Player
         private void OnDestroy()
         {
             Unbind();
-            if (m_AccentMaterial != null)
-            {
-                Destroy(m_AccentMaterial);
-            }
+            ObjectUtility.SafeDestroy(m_AccentMaterial);
         }
 
         private void Unbind()

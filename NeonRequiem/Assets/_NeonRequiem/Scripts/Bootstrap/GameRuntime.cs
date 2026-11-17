@@ -24,6 +24,12 @@ namespace NeonRequiem.App
         /// <summary>The live runtime, or null before boot and after shutdown.</summary>
         public static GameRuntime Instance { get; private set; }
 
+        /// <summary>
+        /// Test seam: when set before the runtime is created, settings are read from and written
+        /// to this store instead of PlayerPrefs, so automated tests never touch a real profile.
+        /// </summary>
+        public static ISettingsStore SettingsStoreOverride { get; set; }
+
         public SettingsManager Settings { get; private set; }
 
         public GameManager GameManager { get; private set; }
@@ -77,6 +83,7 @@ namespace NeonRequiem.App
         {
             // Required when "Enter Play Mode" is configured without a domain reload.
             Instance = null;
+            SettingsStoreOverride = null;
         }
 
         private void Build()
@@ -88,7 +95,8 @@ namespace NeonRequiem.App
                     Application.isMobilePlatform, SystemInfo.systemMemorySize, SystemInfo.processorCount),
                 showPerformanceOverlay = Debug.isDebugBuild,
             };
-            Settings = new SettingsManager(new PlayerPrefsSettingsStore(), defaults);
+            ISettingsStore store = SettingsStoreOverride ?? new PlayerPrefsSettingsStore();
+            Settings = new SettingsManager(store, defaults);
             Settings.Load();
 
             // 2. Game state and scene flow.

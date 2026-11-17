@@ -202,9 +202,9 @@ namespace NeonRequiem.Controls
                 m_Gameplay.Disable();
             }
 
-            if (m_OwnsAsset && m_Asset != null)
+            if (m_OwnsAsset)
             {
-                UnityEngine.Object.Destroy(m_Asset);
+                ObjectUtility.SafeDestroy(m_Asset);
             }
         }
 

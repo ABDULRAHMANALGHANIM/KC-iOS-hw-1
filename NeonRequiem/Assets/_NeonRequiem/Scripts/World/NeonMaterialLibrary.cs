@@ -139,10 +139,7 @@ namespace NeonRequiem.World
             m_Disposed = true;
             for (int i = 0; i < m_Owned.Count; i++)
             {
-                if (m_Owned[i] != null)
-                {
-                    UnityEngine.Object.Destroy(m_Owned[i]);
-                }
+                ObjectUtility.SafeDestroy(m_Owned[i]);
             }
 
             m_Owned.Clear();

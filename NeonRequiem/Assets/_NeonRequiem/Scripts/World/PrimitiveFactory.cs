@@ -1,3 +1,4 @@
+using NeonRequiem.Core;
 using UnityEngine;
 
 namespace NeonRequiem.World
@@ -35,9 +36,9 @@ namespace NeonRequiem.World
                 Collider collider = go.GetComponent<Collider>();
                 if (collider != null)
                 {
-                    // Disable first: Destroy is deferred to the end of the frame.
+                    // Disable first: while playing, destruction is deferred to the end of the frame.
                     collider.enabled = false;
-                    Object.Destroy(collider);
+                    ObjectUtility.SafeDestroy(collider);
                 }
             }
 
