@@ -6,8 +6,13 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
-    path: Assets/Scenes/SampleScene.unity
-    guid: 99c9720ab356a0642a771bea13969a05
-  m_configObjects:
-    com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+    path: Assets/_NeonRequiem/Scenes/Bootstrap/Bootstrap.unity
+    guid: 84fca1330e047af7e17da3f093b34bb4
+  - enabled: 1
+    path: Assets/_NeonRequiem/Scenes/TestScenes/MovementTest.unity
+    guid: 85ca0e12c375a0c9cd61faf0ebee5cae
+  - enabled: 1
+    path: Assets/_NeonRequiem/Scenes/TestScenes/MobileControlsTest.unity
+    guid: aa3debd782fb4c692fbef413cfdddbf0
+  m_configObjects: {}
   m_UseUCBPForAssetBundles: 0
