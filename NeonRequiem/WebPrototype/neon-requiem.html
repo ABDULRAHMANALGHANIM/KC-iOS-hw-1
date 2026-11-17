@@ -1,0 +1,1048 @@
+<title>Neon Requiem</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&display=swap">
+<style>
+  /* Layout: one full-bleed 3D view; HUD pinned to the top corners, thumb controls to the bottom corners. */
+  :root {
+    color-scheme: dark;
+    --bg: #070614;
+    --ink: #eaf2ff;
+    --muted: #93a0c4;
+    --panel: rgba(9, 10, 28, 0.86);
+    --line: rgba(120, 150, 255, 0.28);
+    --cyan: #37e6ff;
+    --magenta: #ff3fb0;
+    --echo: #6dffc9;
+    --amber: #ffb02e;
+    --danger: #ff4d5e;
+    --display: "Chakra Petch", "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+  }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: var(--display); font-weight: 500;
+    overflow: hidden; overscroll-behavior: none; touch-action: none;
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+  }
+  #game { position: relative; height: 100%; overflow: hidden; background: var(--bg); }
+  #view { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #touch { position: absolute; inset: 0; touch-action: none; }
+
+  .hud {
+    position: absolute; inset: 0; pointer-events: none;
+    padding-block: 12px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .hud-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .vitals { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .bar { width: min(46vw, 230px); height: 12px; border: 1px solid var(--line); background: rgba(0,0,0,0.45); transform: skewX(-18deg); }
+  .bar > i { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, var(--magenta), var(--cyan)); transition: width 0.18s ease-out; }
+  .shards { display: flex; align-items: center; gap: 8px; font-size: 15px; letter-spacing: 0.08em; font-variant-numeric: tabular-nums; }
+  .gem { width: 11px; height: 11px; background: var(--cyan); transform: rotate(45deg); box-shadow: 0 0 10px var(--cyan); }
+  .side { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+  .chip {
+    font-size: 12px; letter-spacing: 0.22em; text-transform: uppercase; font-weight: 700;
+    padding: 5px 10px 5px 12px; border: 1px solid var(--cyan); color: var(--cyan); background: rgba(0,0,0,0.4);
+  }
+  .chip.echo { border-color: var(--echo); color: var(--echo); }
+  .mini {
+    pointer-events: auto; font: inherit; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--muted); background: rgba(0,0,0,0.4); border: 1px solid var(--line); padding: 6px 10px; min-height: 32px;
+  }
+  .mini:focus-visible, .btn:focus-visible, .cta:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+  #toast {
+    align-self: center; margin-top: auto; margin-bottom: 190px; max-width: min(92%, 460px);
+    text-align: center; font-size: 15px; line-height: 1.4; text-wrap: balance;
+    padding: 9px 14px; background: var(--panel); border-left: 2px solid var(--cyan);
+    opacity: 0; transition: opacity 0.25s;
+  }
+  #toast.on { opacity: 1; }
+  #flash { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: var(--echo); mix-blend-mode: screen; }
+  #hurt { position: absolute; inset: 0; pointer-events: none; opacity: 0; box-shadow: inset 0 0 120px 30px var(--danger); }
+  #perfect {
+    position: absolute; left: 50%; top: 34%; transform: translate(-50%, -50%); pointer-events: none;
+    font-size: clamp(22px, 6vw, 40px); font-weight: 700; letter-spacing: 0.3em; color: var(--amber);
+    text-shadow: 0 0 18px var(--amber); opacity: 0;
+  }
+
+  #stick {
+    position: absolute; width: 124px; height: 124px; margin: -62px 0 0 -62px; border-radius: 50%;
+    border: 2px solid rgba(160, 220, 255, 0.5); background: rgba(120, 180, 255, 0.08); pointer-events: none;
+  }
+  #knob { position: absolute; left: 50%; top: 50%; width: 54px; height: 54px; margin: -27px 0 0 -27px; border-radius: 50%; background: rgba(170, 225, 255, 0.55); }
+  .stick-hint {
+    position: absolute; left: max(22px, env(safe-area-inset-left, 0px)); bottom: 34px; width: 110px; height: 110px; border-radius: 50%;
+    border: 2px dashed rgba(160, 220, 255, 0.28); pointer-events: none; display: grid; place-items: center;
+    font-size: 11px; letter-spacing: 0.2em; color: var(--muted);
+  }
+
+  .pad { position: absolute; right: max(16px, env(safe-area-inset-right, 0px)); bottom: 18px; width: 184px; height: 184px; }
+  .btn {
+    position: absolute; border-radius: 50%; border: 2px solid currentColor; background: rgba(5, 8, 24, 0.5);
+    font: inherit; font-weight: 700; font-size: 12px; letter-spacing: 0.1em; color: var(--cyan);
+    display: grid; place-items: center; touch-action: none; padding: 0;
+  }
+  .btn.down { background: currentColor; transform: scale(0.93); }
+  .btn.down span { color: var(--bg); }
+  .btn.cool { opacity: 0.38; }
+  #bAttack { right: 0; bottom: 0; width: 96px; height: 96px; color: var(--magenta); font-size: 14px; }
+  #bJump { right: 108px; bottom: 0; width: 72px; height: 72px; }
+  #bDodge { right: 84px; bottom: 84px; width: 72px; height: 72px; color: var(--amber); }
+  #bEcho { right: 4px; bottom: 108px; width: 72px; height: 72px; color: var(--echo); }
+
+  .sheet {
+    position: absolute; inset: 0; display: grid; place-items: center; overflow-y: auto;
+    padding-block: 20px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    background: radial-gradient(ellipse at 50% 40%, rgba(7, 6, 20, 0.55), rgba(7, 6, 20, 0.93));
+  }
+  .sheet { touch-action: pan-y; }
+  .card { width: min(100%, 520px); display: flex; flex-direction: column; gap: 14px; }
+  .eyebrow { font-size: 12px; letter-spacing: 0.34em; text-transform: uppercase; color: var(--magenta); }
+  h1 {
+    margin: 0; font-size: clamp(38px, 11vw, 68px); line-height: 0.92; font-weight: 700; letter-spacing: 0.04em; text-wrap: balance;
+    color: var(--ink); text-shadow: 0 0 22px rgba(55, 230, 255, 0.55), 3px 0 0 rgba(255, 63, 176, 0.55);
+  }
+  .lede { margin: 0; font-size: 16px; line-height: 1.5; color: var(--ink); max-width: 46ch; }
+  .keys { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; font-size: 13.5px; line-height: 1.35; border-top: 1px solid var(--line); padding-top: 12px; }
+  .keys dt { color: var(--cyan); letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; }
+  .keys dd { margin: 0; color: var(--muted); min-width: 0; }
+  .cta {
+    align-self: flex-start; font: inherit; font-weight: 700; font-size: 17px; letter-spacing: 0.24em; text-transform: uppercase;
+    color: var(--bg); background: var(--cyan); border: 0; padding: 14px 30px; min-height: 52px;
+    clip-path: polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%);
+  }
+  .note { margin: 0; font-size: 12.5px; color: var(--muted); }
+  .stat { font-size: 15px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .stat b { color: var(--ink); font-weight: 700; }
+  @media (max-height: 520px) {
+    .card { width: min(100%, 720px); gap: 8px; }
+    h1 { font-size: clamp(28px, 9vh, 44px); }
+    .lede { font-size: 13.5px; line-height: 1.4; max-width: none; }
+    .keys { grid-template-columns: auto 1fr auto 1fr; font-size: 12px; padding-top: 8px; gap: 4px 12px; }
+    .cta { padding: 10px 26px; min-height: 44px; font-size: 15px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .bar > i, #toast { transition: none; } }
+</style>
+
+<div id="game">
+  <canvas id="view" aria-label="Game view"></canvas>
+  <div id="touch"></div>
+  <div id="flash"></div>
+  <div id="hurt"></div>
+  <div id="perfect">PERFECT</div>
+
+  <div class="hud" id="hud" hidden>
+    <div class="hud-row">
+      <div class="vitals">
+        <div class="bar" role="img" aria-label="Health"><i id="hp"></i></div>
+        <div class="shards"><span class="gem"></span><span id="shardCount">0 / 5</span><span>shards</span></div>
+      </div>
+      <div class="side">
+        <div class="chip" id="stateChip">Present</div>
+        <button class="mini" id="soundBtn" type="button">Sound on</button>
+      </div>
+    </div>
+    <div id="toast"></div>
+  </div>
+
+  <div class="stick-hint" id="stickHint" hidden>Move</div>
+  <div id="stick" hidden><div id="knob"></div></div>
+
+  <div class="pad" id="pad" hidden>
+    <button class="btn" id="bEcho" type="button"><span>ECHO</span></button>
+    <button class="btn" id="bDodge" type="button"><span>DODGE</span></button>
+    <button class="btn" id="bJump" type="button"><span>JUMP</span></button>
+    <button class="btn" id="bAttack" type="button"><span>ATTACK</span></button>
+  </div>
+
+  <div class="sheet" id="start">
+    <div class="card">
+      <div class="eyebrow">Noctis · 2189</div>
+      <h1>NEON REQUIEM</h1>
+      <p class="lede">The Choir edited this district. Recover five memory shards before it tidies them away. Two of them only exist in Echo reality, where the bridge still stands and the cage was never built.</p>
+      <dl class="keys">
+        <dt>Move</dt><dd>Left thumb · W A S D</dd>
+        <dt>Look</dt><dd>Drag the right side · drag with the mouse</dd>
+        <dt>Attack</dt><dd>Three-hit chain · J</dd>
+        <dt>Jump</dt><dd>Press again in the air · Space</dd>
+        <dt>Dodge</dt><dd>Pass through a strike for a slow-time opening · Shift</dd>
+        <dt>Echo</dt><dd>Step between Present and Echo reality · E</dd>
+      </dl>
+      <button class="cta" id="beginBtn" type="button">Begin</button>
+      <p class="note" id="startNote">Turn your phone sideways for a wider view.</p>
+    </div>
+  </div>
+
+  <div class="sheet" id="win" hidden>
+    <div class="card">
+      <div class="eyebrow">All five shards recovered</div>
+      <h1>MEMORY RESTORED</h1>
+      <p class="lede">"Kael. Don't let them tidy me away." You remember her voice now. So does the city.</p>
+      <p class="stat">Time <b id="winTime">0:00</b> · Constructs destroyed <b id="winKills">0</b> · Times lost <b id="winFalls">0</b></p>
+      <button class="cta" id="againBtn" type="button">Play again</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const canvas = $('view');
+
+  if (typeof THREE === 'undefined') {
+    $('startNote').textContent = 'The 3D library could not load. Check your connection and reload the page.';
+    $('beginBtn').disabled = true;
+    return;
+  }
+  let renderer;
+  try {
+    renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+  } catch (err) {
+    $('startNote').textContent = 'This browser could not start WebGL, which the game needs.';
+    $('beginBtn').disabled = true;
+    return;
+  }
+
+  // ------------------------------------------------------------------ constants
+  const T = {
+    run: 5.8, accel: 48, decel: 60, airAccel: 22, airDecel: 4, turn: 16,
+    gravity: 30, fallMul: 1.55, lowMul: 2.2, terminal: 38,
+    jumpV: Math.sqrt(2 * 30 * 1.7), airJumpV: Math.sqrt(2 * 30 * 1.35),
+    coyote: 0.12, buffer: 0.14,
+    dodgeDist: 4.2, dodgeDur: 0.34, dodgeCd: 0.35, iStart: 0.0, iEnd: 0.26,
+    radius: 0.38, height: 1.8, step: 0.42,
+  };
+  const COMBO = [
+    { dmg: 20, time: 0.30, hitAt: 0.11, kb: 3.0 },
+    { dmg: 20, time: 0.30, hitAt: 0.11, kb: 3.0 },
+    { dmg: 36, time: 0.46, hitAt: 0.17, kb: 6.5 },
+  ];
+  const PAL = {
+    present: { bg: new THREE.Color(0x0b0924), sky: new THREE.Color(0x6f7dff), ground: new THREE.Color(0x160c2a), sun: new THREE.Color(0xa9b9ff) },
+    echo: { bg: new THREE.Color(0x05231f), sky: new THREE.Color(0x6dffd0), ground: new THREE.Color(0x041512), sun: new THREE.Color(0xc4fff1) },
+  };
+  const MEMORIES = [
+    'A platform at Meridian. A hand letting go of yours.',
+    'Ilya, laughing at a train that never came.',
+    'The skyline was different. Someone repainted it overnight.',
+    'A voice on the public channel: "Nothing happened here."',
+    'Her last message, still unsent: "Find me in the old city."',
+  ];
+
+  // ------------------------------------------------------------------ scene
+  const scene = new THREE.Scene();
+  scene.background = PAL.present.bg.clone();
+  scene.fog = new THREE.FogExp2(PAL.present.bg.getHex(), 0.016);
+  const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 400);
+  const hemi = new THREE.HemisphereLight(PAL.present.sky.getHex(), PAL.present.ground.getHex(), 0.95);
+  const sun = new THREE.DirectionalLight(PAL.present.sun.getHex(), 0.75);
+  sun.position.set(-18, 30, -12);
+  scene.add(hemi, sun);
+
+  const world = { state: 'present', blend: 0, shiftCd: 0 };
+  const solids = [];
+  const stateful = [];
+
+  function gridTexture() {
+    const c = document.createElement('canvas');
+    c.width = c.height = 128;
+    const g = c.getContext('2d');
+    g.fillStyle = '#1b1d33'; g.fillRect(0, 0, 128, 128);
+    g.strokeStyle = '#4a55a8'; g.lineWidth = 3; g.strokeRect(0, 0, 128, 128);
+    const tex = new THREE.CanvasTexture(c);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.anisotropy = 4;
+    return tex;
+  }
+  const lambert = (color) => new THREE.MeshLambertMaterial({ color });
+  const glow = (color, opacity) => new THREE.MeshBasicMaterial({ color, transparent: opacity !== undefined, opacity: opacity === undefined ? 1 : opacity });
+  const ghostMat = (color) => new THREE.MeshBasicMaterial({ color, wireframe: true, transparent: true, opacity: 0.16, depthWrite: false });
+
+  /** Adds a box. state: 'both' | 'present' | 'echo'. Solid boxes collide with the player and block the camera. */
+  function box(x, y, z, w, h, d, mat, opts) {
+    const o = opts || {};
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    mesh.position.set(x, y, z);
+    scene.add(mesh);
+    const state = o.state || 'both';
+    let solid = null;
+    if (o.solid !== false) {
+      solid = {
+        state,
+        min: new THREE.Vector3(x - w / 2, y - h / 2, z - d / 2),
+        max: new THREE.Vector3(x + w / 2, y + h / 2, z + d / 2),
+      };
+      solids.push(solid);
+    }
+    if (state !== 'both') stateful.push({ mesh, state, mat, ghost: ghostMat(o.ghostColor || 0x6dffc9) });
+    return mesh;
+  }
+  const strip = (x, y, z, w, h, d, color, state) => box(x, y, z, w, h, d, glow(color), { solid: false, state });
+
+  function buildLevel() {
+    const floorTex = gridTexture();
+    floorTex.repeat.set(28, 28);
+    const floor = new THREE.MeshLambertMaterial({ color: 0xffffff, map: floorTex });
+    const dark = lambert(0x23263f), mid = lambert(0x343a5e), CY = 0x37e6ff, MG = 0xff3fb0, AM = 0xffb02e, EC = 0x6dffc9;
+
+    // Main slab, 56 x 56 m, walls on every side with a gate in the north wall.
+    box(0, -0.5, 0, 56, 1, 56, floor);
+    box(-28.3, 1.2, 0, 0.6, 2.4, 57.2, dark); box(28.3, 1.2, 0, 0.6, 2.4, 57.2, dark);
+    box(0, 1.2, -28.3, 57.2, 2.4, 0.6, dark);
+    box(-15.15, 1.2, 28.3, 26.3, 2.4, 0.6, dark); box(15.15, 1.2, 28.3, 26.3, 2.4, 0.6, dark);
+    strip(-28, 2.46, 0, 0.12, 0.12, 56, CY); strip(28, 2.46, 0, 0.12, 0.12, 56, MG);
+    strip(0, 2.46, -28, 56, 0.12, 0.12, CY);
+    strip(-15, 2.46, 28, 26, 0.12, 0.12, MG); strip(15, 2.46, 28, 26, 0.12, 0.12, MG);
+    strip(0, 0.02, 27.6, 4, 0.04, 0.3, AM);
+
+    // West: climbing platforms. The second needs the air jump from the ground.
+    box(-14, 0.7, -8, 4, 1.4, 4, mid); strip(-14, 1.42, -9.9, 4, 0.05, 0.14, CY);
+    box(-20, 1.4, -3, 4, 2.8, 4, mid); strip(-20, 2.82, -4.9, 4, 0.05, 0.14, CY);
+
+    // East: a lone pillar, reachable only with the air jump.
+    box(17, 1.35, -5, 3, 2.7, 3, mid); strip(17, 2.72, -6.4, 3, 0.05, 0.14, MG);
+
+    // Cover and landmarks.
+    for (const [x, z] of [[6, 4], [-5, 12], [10, -14], [-9, -18], [20, 10]]) {
+      box(x, 2.5, z, 1.1, 5, 1.1, dark); strip(x, 4.2, z, 1.16, 0.14, 1.16, x > 0 ? MG : CY);
+    }
+
+    // North: an island across a 9 m gap. The bridge exists only in Echo reality.
+    box(0, -0.5, 44, 14, 1, 14, floor);
+    strip(0, 0.02, 37.2, 14, 0.04, 0.2, EC);
+    box(0, -0.25, 32.5, 4, 0.5, 9, new THREE.MeshLambertMaterial({ color: 0x2a6f66, emissive: 0x0d3b35 }), { state: 'echo', ghostColor: EC });
+    strip(-1.9, 0.06, 32.5, 0.1, 0.1, 9, EC, 'echo'); strip(1.9, 0.06, 32.5, 0.1, 0.1, 9, EC, 'echo');
+
+    // The memory cage: solid in Present, never built in Echo.
+    const wall = new THREE.MeshLambertMaterial({ color: 0x7a1f5e, emissive: 0x3a0b2c });
+    const cg = { state: 'present', ghostColor: MG };
+    box(-16, 1.6, 13.2, 6, 3.2, 0.5, wall, cg); box(-16, 1.6, 18.8, 6, 3.2, 0.5, wall, cg);
+    box(-18.75, 1.6, 16, 0.5, 3.2, 5.1, wall, cg); box(-13.25, 1.6, 16, 0.5, 3.2, 5.1, wall, cg);
+    box(-16, 3.4, 16, 6, 0.4, 6.1, wall, cg);
+    strip(-16, 3.64, 13.2, 6, 0.08, 0.56, MG, 'present');
+
+    // Skyline, purely visual.
+    let seed = 2189;
+    const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+    const tower = lambert(0x0f1124);
+    for (let i = 0; i < 18; i++) {
+      const a = (i + rnd() * 0.6) / 18 * Math.PI * 2, r = 70 + rnd() * 40;
+      const w = 9 + rnd() * 10, d = 9 + rnd() * 10, h = 36 + rnd() * 60;
+      const x = Math.sin(a) * r, z = Math.cos(a) * r + 8;
+      box(x, (h - 40) / 2, z, w, h + 40, d, tower, { solid: false });
+      const n = 2 + Math.floor(rnd() * 2);
+      for (let j = 0; j < n; j++) strip(x, h * (0.3 + 0.6 * rnd()), z, w + 0.3, 0.6, d + 0.3, [CY, MG, AM][Math.floor(rnd() * 3)]);
+    }
+  }
+  buildLevel();
+
+  const isActive = (s) => s.state === 'both' || s.state === world.state;
+  function refreshStateful() {
+    for (const s of stateful) s.mesh.material = (s.state === world.state) ? s.mat : s.ghost;
+  }
+  refreshStateful();
+
+  // ------------------------------------------------------------------ collision helpers
+  function pushOut(px, pz, r, s) {
+    const cx = Math.max(s.min.x, Math.min(px, s.max.x)), cz = Math.max(s.min.z, Math.min(pz, s.max.z));
+    let dx = px - cx, dz = pz - cz;
+    const d2 = dx * dx + dz * dz;
+    if (d2 >= r * r) return null;
+    if (d2 > 1e-8) {
+      const d = Math.sqrt(d2), k = (r - d) / d;
+      return { x: dx * k, z: dz * k };
+    }
+    // Centre is inside the box: leave through the nearest face.
+    const l = px - s.min.x, rr = s.max.x - px, n = pz - s.min.z, f = s.max.z - pz;
+    const m = Math.min(l, rr, n, f);
+    if (m === l) return { x: -(l + r), z: 0 };
+    if (m === rr) return { x: rr + r, z: 0 };
+    if (m === n) return { x: 0, z: -(n + r) };
+    return { x: 0, z: f + r };
+  }
+  function resolveWalls(pos, r, height, grounded) {
+    for (const s of solids) {
+      if (!isActive(s)) continue;
+      if (s.max.y - pos.y <= (grounded ? T.step : 0.08)) continue;
+      if (pos.y + height <= s.min.y + 0.05) continue;
+      const p = pushOut(pos.x, pos.z, r, s);
+      if (p) { pos.x += p.x; pos.z += p.z; }
+    }
+  }
+  function groundUnder(x, z, maxTop) {
+    let best = -Infinity, hit = null;
+    const pad = T.radius * 0.55;
+    for (const s of solids) {
+      if (!isActive(s)) continue;
+      if (x < s.min.x - pad || x > s.max.x + pad || z < s.min.z - pad || z > s.max.z + pad) continue;
+      if (s.max.y <= maxTop && s.max.y > best) { best = s.max.y; hit = s; }
+    }
+    return { y: best, solid: hit };
+  }
+  function overlapsSolid(pos, r, height, state) {
+    for (const s of solids) {
+      if (s.state !== state) continue;
+      if (pos.y + height <= s.min.y + 0.05 || pos.y >= s.max.y - 0.05) continue;
+      if (pushOut(pos.x, pos.z, r, s)) return true;
+    }
+    return false;
+  }
+  /** Distance along a ray until the first active solid, or maxDist. */
+  function rayFree(o, dir, maxDist) {
+    let best = maxDist;
+    for (const s of solids) {
+      if (!isActive(s)) continue;
+      let t0 = 0, t1 = best, ok = true;
+      for (const ax of ['x', 'y', 'z']) {
+        const d = dir[ax];
+        if (Math.abs(d) < 1e-6) { if (o[ax] < s.min[ax] || o[ax] > s.max[ax]) { ok = false; break; } continue; }
+        let a = (s.min[ax] - o[ax]) / d, b = (s.max[ax] - o[ax]) / d;
+        if (a > b) { const tmp = a; a = b; b = tmp; }
+        if (a > t0) t0 = a;
+        if (b < t1) t1 = b;
+        if (t0 > t1) { ok = false; break; }
+      }
+      if (ok && t0 < best) best = t0;
+    }
+    return best;
+  }
+
+  // ------------------------------------------------------------------ models
+  const blobGeo = new THREE.CircleGeometry(0.55, 20);
+  const blobMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.42, depthWrite: false });
+  function blob() { const m = new THREE.Mesh(blobGeo, blobMat); m.rotation.x = -Math.PI / 2; scene.add(m); return m; }
+
+  function limb(parent, x, y, len, rad, mat) {
+    const j = new THREE.Group(); j.position.set(x, y, 0); parent.add(j);
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(rad, rad * 0.85, len, 8), mat);
+    m.position.y = -len / 2; j.add(m);
+    return j;
+  }
+  function buildPlayer() {
+    const g = new THREE.Group();
+    const suit = lambert(0x161a2c), suit2 = lambert(0x2a3150), skin = lambert(0xe2b9a4), hair = lambert(0x0a0a12);
+    const circuit = glow(0x37e6ff);
+    const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.27, 0.2, 0.72, 10), suit); torso.position.y = 1.1; g.add(torso);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 10), skin); head.position.y = 1.62; g.add(head);
+    const hr = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 10), hair); hr.position.set(0, 1.68, -0.04); g.add(hr);
+    const streak = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 0.2), lambert(0xc9d2e6)); streak.position.set(0.09, 1.82, 0.03); g.add(streak);
+    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.05, 0.04), circuit); visor.position.set(0, 1.63, 0.14); g.add(visor);
+    const chest = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.36, 0.03), circuit); chest.position.set(0, 1.16, 0.25); g.add(chest);
+    const spine = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.46, 0.03), circuit); spine.position.set(0, 1.12, -0.25); g.add(spine);
+    const legL = limb(g, -0.12, 0.76, 0.74, 0.1, suit), legR = limb(g, 0.12, 0.76, 0.74, 0.1, suit);
+    const armL = limb(g, -0.34, 1.4, 0.6, 0.07, suit2), armR = limb(g, 0.34, 1.4, 0.6, 0.07, suit2);
+    const device = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.16), glow(0xff3fb0)); device.position.y = -0.42; armL.add(device);
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.05, 1.05, 0.03), circuit); blade.position.set(0, -0.62, 0.42); blade.rotation.x = Math.PI / 2.3; armR.add(blade);
+    const arc = new THREE.Mesh(new THREE.RingGeometry(1.1, 2.3, 24, 1, -1.25, 2.5),
+      new THREE.MeshBasicMaterial({ color: 0x8ff3ff, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }));
+    arc.geometry.rotateX(-Math.PI / 2); arc.geometry.rotateY(-Math.PI / 2); arc.position.y = 1.05; g.add(arc);
+    g.rotation.order = 'YXZ';
+    scene.add(g);
+    return { g, legL, legR, armL, armR, arc, circuit };
+  }
+  const rig = buildPlayer();
+
+  function buildEnemy(kind) {
+    const echo = kind === 'revenant';
+    const g = new THREE.Group();
+    const bodyMat = new THREE.MeshLambertMaterial({ color: echo ? 0x1f5d55 : 0x4a2740, transparent: true });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: echo ? 0x6dffc9 : 0xff5a5a, transparent: true });
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.3, 1.3, 8), bodyMat); body.position.y = 0.85; g.add(body);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.4, 0.46), bodyMat); head.position.y = 1.75; g.add(head);
+    const eye = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.09, 0.05), eyeMat); eye.position.set(0, 1.77, 0.24); g.add(eye);
+    const sh = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.16, 0.4), bodyMat); sh.position.y = 1.45; g.add(sh);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.9, 1.0, 32),
+      new THREE.MeshBasicMaterial({ color: 0xff4d5e, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false }));
+    ring.rotation.x = -Math.PI / 2; ring.position.y = 0.04; g.add(ring);
+    const barBack = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.09), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.6, depthTest: false }));
+    const barFill = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.09), new THREE.MeshBasicMaterial({ color: echo ? 0x6dffc9 : 0xff5a5a, depthTest: false }));
+    const bar = new THREE.Group(); bar.add(barBack, barFill); bar.position.y = 2.25; bar.visible = false; g.add(bar);
+    barFill.position.z = 0.001;
+    scene.add(g);
+    return { g, bodyMat, eyeMat, ring, bar, barFill, baseColor: bodyMat.color.clone() };
+  }
+
+  const shardGeo = new THREE.OctahedronGeometry(0.42, 0);
+  function buildShard(echoOnly) {
+    const g = new THREE.Group();
+    const mat = new THREE.MeshBasicMaterial({ color: echoOnly ? 0x6dffc9 : 0x37e6ff, transparent: true });
+    const core = new THREE.Mesh(shardGeo, mat); core.scale.y = 1.6; g.add(core);
+    const halo = new THREE.Mesh(new THREE.RingGeometry(0.7, 0.78, 28), new THREE.MeshBasicMaterial({ color: mat.color, transparent: true, opacity: 0.6, side: THREE.DoubleSide, depthWrite: false }));
+    halo.rotation.x = -Math.PI / 2; halo.position.y = -0.85; g.add(halo);
+    scene.add(g);
+    return { g, mat, core, halo };
+  }
+
+  // ------------------------------------------------------------------ game state
+  const SPAWN = new THREE.Vector3(0, 0, -22);
+  const P = {
+    pos: SPAWN.clone(), vel: new THREE.Vector3(), yaw: 0, grounded: true,
+    coyote: 0, jumpBuf: 0, airJumps: 1, varJump: false,
+    dodgeT: -1, dodgeDir: new THREE.Vector3(), dodgeCd: 0, dodgeBuf: 0, airDodges: 1, dodgeGround: true,
+    hp: 100, inv: 0, hurtT: 0,
+    atkN: -1, atkT: 0, atkHit: false, atkQueued: false, comboWindow: 0, comboIdx: -1, lunge: 0,
+    stride: 0, safe: [], safeT: 0,
+  };
+  const cam = { yaw: 0, pitch: 0.3, dist: 6.2, idle: 2, shake: 0 };
+  const input = { mx: 0, my: 0, jump: false, jumpHeld: false, dodge: false, attack: false, echo: false, keys: {} };
+  const game = { started: false, won: false, time: 0, kills: 0, falls: 0, shards: 0, hitStop: 0, slowMo: 0, tokens: 0 };
+  let enemies = [], shards = [];
+  const playerBlob = blob();
+
+  const ENEMY_DEFS = [
+    { kind: 'sentinel', x: 8, z: -6 }, { kind: 'sentinel', x: -6, z: 4 }, { kind: 'sentinel', x: 13, z: 14, home: 12 },
+    { kind: 'revenant', x: -12, z: 11 }, { kind: 'revenant', x: 0, z: 46, home: 4.5 },
+  ];
+  const SHARD_DEFS = [
+    { x: 0, y: 1.1, z: -13, state: 'both' },
+    { x: -20, y: 3.9, z: -3, state: 'both' },
+    { x: 17, y: 3.8, z: -5, state: 'both' },
+    { x: 0, y: 1.1, z: 44, state: 'echo' },
+    { x: -16, y: 1.1, z: 16, state: 'echo' },
+  ];
+
+  function spawnEntities() {
+    for (const e of enemies) { scene.remove(e.m.g); scene.remove(e.blob); }
+    for (const s of shards) scene.remove(s.m.g);
+    enemies = ENEMY_DEFS.map((d) => ({
+      kind: d.kind, state: d.kind === 'revenant' ? 'echo' : 'present',
+      pos: new THREE.Vector3(d.x, 0, d.z), home: new THREE.Vector3(d.x, 0, d.z), homeR: d.home || 15,
+      yaw: Math.PI, hp: d.kind === 'revenant' ? 80 : 60, maxHp: d.kind === 'revenant' ? 80 : 60,
+      mode: 'idle', t: 0, kb: new THREE.Vector3(), flash: 0, hasToken: false, dead: false, fade: 1,
+      m: buildEnemy(d.kind), blob: blob(),
+    }));
+    shards = SHARD_DEFS.map((d) => ({ pos: new THREE.Vector3(d.x, d.y, d.z), state: d.state, taken: false, m: buildShard(d.state === 'echo') }));
+  }
+
+  function reset() {
+    world.state = 'present'; world.blend = 0; world.shiftCd = 0; refreshStateful();
+    P.pos.copy(SPAWN); P.vel.set(0, 0, 0); P.yaw = 0; P.grounded = true; P.hp = 100; P.inv = 0;
+    P.dodgeT = -1; P.dodgeCd = 0; P.atkN = -1; P.safe.length = 0; P.airJumps = 1; P.airDodges = 1;
+    cam.yaw = 0; cam.pitch = 0.3;
+    game.won = false; game.time = 0; game.kills = 0; game.falls = 0; game.shards = 0; game.tokens = 0; game.hitStop = 0; game.slowMo = 0;
+    spawnEntities(); updateHud(); applyPalette(0);
+    $('stateChip').textContent = 'Present'; $('stateChip').classList.remove('echo');
+  }
+
+  // ------------------------------------------------------------------ audio (synthesised, starts on Begin)
+  let actx = null, soundOn = true;
+  function tone(freq, dur, type, vol, slideTo, delay) {
+    if (!actx || !soundOn) return;
+    const t = actx.currentTime + (delay || 0);
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = type || 'sine'; o.frequency.setValueAtTime(freq, t);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol || 0.12, t + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t + dur + 0.02);
+  }
+  const sfx = {
+    jump: () => tone(300, 0.14, 'triangle', 0.1, 560),
+    dodge: () => tone(520, 0.2, 'sawtooth', 0.05, 110),
+    swing: (n) => tone(n === 2 ? 190 : 250, 0.1, 'sawtooth', 0.05, 90),
+    hit: (big) => { tone(big ? 110 : 150, 0.16, 'square', 0.12, 50); tone(900, 0.05, 'triangle', 0.06, 400); },
+    hurt: () => tone(140, 0.3, 'sawtooth', 0.14, 45),
+    warn: () => tone(620, 0.09, 'square', 0.04, 620),
+    shard: () => [660, 880, 1320].forEach((f, i) => tone(f, 0.22, 'sine', 0.1, f, i * 0.08)),
+    shift: () => { tone(180, 0.4, 'sine', 0.12, 1100); tone(1400, 0.35, 'triangle', 0.04, 300); },
+    deny: () => tone(120, 0.16, 'square', 0.08, 90),
+    perfect: () => { tone(880, 0.3, 'sine', 0.1, 1760); },
+    kill: () => tone(240, 0.45, 'sawtooth', 0.08, 40),
+    win: () => [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.5, 'triangle', 0.1, f, i * 0.14)),
+  };
+
+  // ------------------------------------------------------------------ HUD
+  let toastTimer = 0;
+  function toast(text, seconds) { const el = $('toast'); el.textContent = text; el.classList.add('on'); toastTimer = seconds || 3; }
+  function updateHud() {
+    $('hp').style.width = Math.max(0, P.hp) + '%';
+    $('shardCount').textContent = game.shards + ' / ' + SHARD_DEFS.length;
+  }
+  function pulse(el, peak, ms) {
+    el.style.transition = 'none'; el.style.opacity = peak;
+    requestAnimationFrame(() => { el.style.transition = 'opacity ' + ms + 'ms ease-out'; el.style.opacity = 0; });
+  }
+
+  // ------------------------------------------------------------------ player actions
+  function tryShift() {
+    if (world.shiftCd > 0) return;
+    const next = world.state === 'present' ? 'echo' : 'present';
+    if (overlapsSolid(P.pos, T.radius, T.height, next)) {
+      sfx.deny(); toast('Something solid stands here in the other reality.', 2.2); world.shiftCd = 0.3; return;
+    }
+    world.state = next; world.shiftCd = 0.8; refreshStateful();
+    P.inv = Math.max(P.inv, 0.25);
+    $('stateChip').textContent = next === 'echo' ? 'Echo' : 'Present';
+    $('stateChip').classList.toggle('echo', next === 'echo');
+    $('flash').style.background = next === 'echo' ? 'var(--echo)' : 'var(--cyan)';
+    pulse($('flash'), 0.5, 420); sfx.shift();
+    // Enemies that just phased out drop their attack.
+    for (const e of enemies) if (e.state !== world.state && !e.dead) { releaseToken(e); e.mode = 'idle'; e.m.ring.material.opacity = 0; }
+  }
+
+  function nearestEnemy(maxDist, aimYaw, maxAngle) {
+    let best = null, bd = maxDist;
+    for (const e of enemies) {
+      if (e.dead || e.state !== world.state) continue;
+      const dx = e.pos.x - P.pos.x, dz = e.pos.z - P.pos.z, d = Math.hypot(dx, dz);
+      if (d > bd || Math.abs(e.pos.y - P.pos.y) > 2) continue;
+      if (maxAngle !== undefined) {
+        let a = Math.atan2(dx, dz) - aimYaw; a = Math.atan2(Math.sin(a), Math.cos(a));
+        if (Math.abs(a) > maxAngle) continue;
+      }
+      best = e; bd = d;
+    }
+    return best;
+  }
+
+  function startAttack(wishYaw) {
+    P.atkN = P.comboWindow > 0 ? (P.comboIdx + 1) % 3 : 0;
+    P.comboIdx = P.atkN;
+    P.atkT = 0; P.atkHit = false; P.atkQueued = false; P.comboWindow = 0;
+    const aim = wishYaw === null ? P.yaw : wishYaw;
+    const target = nearestEnemy(5, aim, 1.5);
+    if (target) {
+      const dx = target.pos.x - P.pos.x, dz = target.pos.z - P.pos.z;
+      P.yaw = Math.atan2(dx, dz);
+      P.lunge = Math.max(0, Math.min(2.4, Math.hypot(dx, dz) - 1.5));
+    } else { P.yaw = aim; P.lunge = 0.9; }
+    sfx.swing(P.atkN);
+  }
+
+  function attackHit() {
+    const c = COMBO[P.atkN];
+    let any = false;
+    for (const e of enemies) {
+      if (e.dead || e.state !== world.state) continue;
+      const dx = e.pos.x - P.pos.x, dz = e.pos.z - P.pos.z, d = Math.hypot(dx, dz);
+      if (d > 2.7 || Math.abs(e.pos.y - P.pos.y) > 1.8) continue;
+      let a = Math.atan2(dx, dz) - P.yaw; a = Math.atan2(Math.sin(a), Math.cos(a));
+      if (Math.abs(a) > 1.25) continue;
+      any = true;
+      e.hp -= c.dmg; e.flash = 0.12; e.m.bar.visible = true;
+      const k = c.kb / Math.max(d, 0.3); e.kb.set(dx * k, 0, dz * k);
+      releaseToken(e); e.m.ring.material.opacity = 0;
+      if (e.hp <= 0) { e.dead = true; e.mode = 'dead'; e.t = 0; game.kills++; sfx.kill(); }
+      else { e.mode = 'stagger'; e.t = P.atkN === 2 ? 0.55 : 0.32; }
+    }
+    if (any) { sfx.hit(P.atkN === 2); game.hitStop = P.atkN === 2 ? 0.09 : 0.05; cam.shake = Math.max(cam.shake, P.atkN === 2 ? 0.28 : 0.14); }
+  }
+
+  function hurtPlayer(dmg, fromX, fromZ) {
+    if (P.inv > 0 || game.won) return;
+    P.hp -= dmg; P.inv = 0.7; P.atkN = -1; P.dodgeT = -1;
+    const dx = P.pos.x - fromX, dz = P.pos.z - fromZ, d = Math.hypot(dx, dz) || 1;
+    P.vel.x = dx / d * 7; P.vel.z = dz / d * 7;
+    cam.shake = 0.35; pulse($('hurt'), 0.9, 500); sfx.hurt();
+    if (P.hp <= 0) { game.falls++; toast('Signal lost. Returning to the last anchor.', 2.4); respawn(true); }
+    updateHud();
+  }
+
+  function respawn(full) {
+    let spot = SPAWN;
+    for (let i = P.safe.length - 1; i >= 0; i--) if (game.time - P.safe[i].t > 0.9) { spot = P.safe[i].p; break; }
+    if (full) { spot = SPAWN; P.hp = 100; P.safe.length = 0; }
+    P.pos.copy(spot); P.vel.set(0, 0, 0); P.grounded = false; P.inv = 1.2; P.dodgeT = -1; P.atkN = -1;
+    cam.yaw = P.yaw; updateHud();
+  }
+
+  // ------------------------------------------------------------------ player update
+  const tmp = new THREE.Vector3();
+  function updatePlayer(dt) {
+    const wasGrounded = P.grounded;
+    // Camera-relative wish direction (camera forward is +Z at yaw 0; screen-right is -X in this handedness).
+    let mx = input.mx, my = input.my;
+    const k = input.keys;
+    if (k.KeyW || k.ArrowUp) my += 1; if (k.KeyS || k.ArrowDown) my -= 1;
+    if (k.KeyD || k.ArrowRight) mx += 1; if (k.KeyA || k.ArrowLeft) mx -= 1;
+    let mag = Math.hypot(mx, my);
+    if (mag > 1) { mx /= mag; my /= mag; mag = 1; }
+    const fx = Math.sin(cam.yaw), fz = Math.cos(cam.yaw);
+    const wx = fx * my - fz * mx, wz = fz * my + fx * mx;
+    const wishYaw = mag > 0.08 ? Math.atan2(wx, wz) : null;
+
+    P.jumpBuf = input.jump ? T.buffer + dt : Math.max(0, P.jumpBuf - dt);
+    P.dodgeBuf = input.dodge ? 0.12 + dt : Math.max(0, P.dodgeBuf - dt);
+    if (P.dodgeT < 0) P.dodgeCd = Math.max(0, P.dodgeCd - dt);
+    P.inv = Math.max(0, P.inv - dt);
+    P.comboWindow = Math.max(0, P.comboWindow - dt);
+    if (input.echo) tryShift();
+
+    // Dodge start.
+    if (P.dodgeT < 0 && P.dodgeBuf > 0 && P.dodgeCd <= 0 && (P.grounded || P.airDodges > 0)) {
+      const yaw = wishYaw === null ? P.yaw + Math.PI : wishYaw;
+      P.dodgeDir.set(Math.sin(yaw), 0, Math.cos(yaw));
+      if (wishYaw !== null) P.yaw = wishYaw;
+      P.dodgeGround = P.grounded; if (!P.grounded) P.airDodges--;
+      P.dodgeT = 0; P.dodgeBuf = 0; P.atkN = -1; P.vel.y = 0; P.varJump = false; sfx.dodge();
+    }
+
+    // Attack start / chaining.
+    if (input.attack) { if (P.atkN < 0 || P.comboWindow > 0) { if (P.dodgeT < 0) startAttack(wishYaw); } else P.atkQueued = true; }
+
+    const prevY = P.pos.y;
+    if (P.dodgeT >= 0) {
+      const u0 = P.dodgeT / T.dodgeDur; P.dodgeT = Math.min(P.dodgeT + dt, T.dodgeDur); const u1 = P.dodgeT / T.dodgeDur;
+      const frac = (1.5 * u1 - 0.5 * u1 * u1) - (1.5 * u0 - 0.5 * u0 * u0);
+      P.pos.x += P.dodgeDir.x * T.dodgeDist * frac; P.pos.z += P.dodgeDir.z * T.dodgeDist * frac;
+      P.vel.set(P.dodgeDir.x * T.run, 0, P.dodgeDir.z * T.run);
+      if (P.dodgeT >= T.dodgeDur) { P.dodgeT = -1; P.dodgeCd = T.dodgeCd; }
+    } else {
+      // Attack timeline.
+      let moveScale = 1;
+      if (P.atkN >= 0) {
+        const c = COMBO[P.atkN]; P.atkT += dt; moveScale = 0.15;
+        if (P.atkT < 0.12 && P.lunge > 0) { const s = P.lunge / 0.12 * dt; P.pos.x += Math.sin(P.yaw) * s; P.pos.z += Math.cos(P.yaw) * s; }
+        if (!P.atkHit && P.atkT >= c.hitAt) { P.atkHit = true; attackHit(); }
+        if (P.atkT >= c.hitAt + 0.04) P.comboWindow = 0.42;
+        if (P.atkT >= c.time) { if (P.atkQueued) { startAttack(wishYaw); } else { P.atkN = -1; P.comboWindow = 0.3; } }
+        if (P.atkQueued && P.atkN >= 0 && P.atkT >= COMBO[P.atkN].hitAt + 0.06) startAttack(wishYaw);
+      }
+      // Planar velocity.
+      const tx = wx * T.run * moveScale, tz = wz * T.run * moveScale;
+      const rate = (P.grounded ? (mag > 0 ? T.accel : T.decel) : (mag > 0 ? T.airAccel : T.airDecel)) * dt;
+      const dx = tx - P.vel.x, dz = tz - P.vel.z, dl = Math.hypot(dx, dz);
+      if (dl <= rate || dl < 1e-6) { P.vel.x = tx; P.vel.z = tz; } else { P.vel.x += dx / dl * rate; P.vel.z += dz / dl * rate; }
+      if (wishYaw !== null && P.atkN < 0) {
+        let d = wishYaw - P.yaw; d = Math.atan2(Math.sin(d), Math.cos(d));
+        const stepYaw = T.turn * dt; P.yaw += Math.abs(d) <= stepYaw ? d : Math.sign(d) * stepYaw;
+      }
+      // Jumping.
+      if (P.jumpBuf > 0) {
+        if (P.grounded || P.coyote > 0) { P.vel.y = T.jumpV; P.grounded = false; P.coyote = 0; P.jumpBuf = 0; P.varJump = true; sfx.jump(); }
+        else if (P.airJumps > 0) { P.airJumps--; P.vel.y = T.airJumpV; P.jumpBuf = 0; P.varJump = true; sfx.jump(); }
+      }
+      P.pos.x += P.vel.x * dt; P.pos.z += P.vel.z * dt;
+      if (!P.grounded) {
+        let mul = 1;
+        if (P.vel.y <= 0) { mul = T.fallMul; P.varJump = false; } else if (P.varJump && !input.jumpHeld) mul = T.lowMul;
+        const v0 = P.vel.y, v1 = Math.max(v0 - T.gravity * mul * dt, -T.terminal);
+        P.vel.y = v1; P.pos.y += (v0 + v1) * 0.5 * dt;
+      }
+    }
+
+    // Head bump.
+    if (P.vel.y > 0) {
+      for (const s of solids) {
+        if (!isActive(s) || s.min.y < prevY + T.height - 0.05 || P.pos.y + T.height <= s.min.y) continue;
+        if (P.pos.x > s.min.x - T.radius && P.pos.x < s.max.x + T.radius && P.pos.z > s.min.z - T.radius && P.pos.z < s.max.z + T.radius) {
+          P.pos.y = s.min.y - T.height; P.vel.y = 0; P.varJump = false;
+        }
+      }
+    }
+    resolveWalls(P.pos, T.radius, T.height, wasGrounded);
+    // Enemies are solid unless the player is dodging through them.
+    if (P.dodgeT < 0) for (const e of enemies) {
+      if (e.dead || e.state !== world.state) continue;
+      const dx = P.pos.x - e.pos.x, dz = P.pos.z - e.pos.z, d = Math.hypot(dx, dz);
+      if (d < 0.9 && d > 1e-4 && Math.abs(P.pos.y - e.pos.y) < 1.7) { P.pos.x += dx / d * (0.9 - d); P.pos.z += dz / d * (0.9 - d); }
+    }
+
+    // Ground.
+    const maxTop = wasGrounded ? prevY + T.step : Math.max(prevY, P.pos.y) + 0.02;
+    const g = groundUnder(P.pos.x, P.pos.z, maxTop);
+    const airDodging = P.dodgeT >= 0 && !P.dodgeGround;
+    if (!airDodging && P.vel.y <= 0 && P.pos.y <= g.y + (wasGrounded ? 0.45 : 0)) {
+      P.pos.y = g.y; P.vel.y = 0;
+      if (!wasGrounded) { P.airJumps = 1; P.airDodges = 1; }
+      P.grounded = true; P.coyote = T.coyote;
+      P.safeT += dt;
+      if (P.safeT > 0.3 && g.solid && g.solid.state === 'both') { P.safeT = 0; P.safe.push({ p: P.pos.clone(), t: game.time }); if (P.safe.length > 14) P.safe.shift(); }
+    } else {
+      if (wasGrounded && P.vel.y <= 0 && P.dodgeT < 0) P.vel.y = 0;
+      P.grounded = false; P.coyote = Math.max(0, P.coyote - dt);
+      if (P.dodgeT >= 0) P.dodgeGround = false;
+    }
+    if (P.pos.y < -18) { game.falls++; P.hp = Math.max(1, P.hp - 12); toast('You fell out of the district. Back to solid ground.', 2.2); sfx.hurt(); pulse($('hurt'), 0.7, 500); respawn(false); }
+
+    // Shards.
+    for (const s of shards) {
+      if (s.taken || (s.state !== 'both' && s.state !== world.state)) continue;
+      tmp.copy(s.pos).sub(P.pos); tmp.y -= 0.9;
+      if (tmp.lengthSq() < 1.5 * 1.5) {
+        s.taken = true; s.m.g.visible = false; game.shards++; P.hp = Math.min(100, P.hp + 25);
+        sfx.shard(); toast(MEMORIES[game.shards - 1] || 'A memory returns.', 4.2); updateHud();
+        if (game.shards === SHARD_DEFS.length) win();
+      }
+    }
+
+    // Presentation.
+    const speed = Math.hypot(P.vel.x, P.vel.z), s01 = Math.min(1, speed / T.run);
+    if (P.grounded && speed > 0.2) P.stride += speed * 3.4 * dt;
+    const swing = P.grounded ? Math.sin(P.stride) * 0.75 * s01 : (P.vel.y > 0 ? -0.5 : 0.3);
+    rig.legL.rotation.x = swing; rig.legR.rotation.x = P.grounded ? -swing : swing * 0.5;
+    rig.armL.rotation.x = -swing * 0.8;
+    let arm = swing * 0.8, arcO = 0;
+    if (P.atkN >= 0) {
+      const u = Math.min(1, P.atkT / COMBO[P.atkN].time);
+      arm = -2.4 + u * 3.0;
+      arcO = Math.max(0, 1 - Math.abs(P.atkT - COMBO[P.atkN].hitAt) / 0.12) * 0.85;
+      rig.arc.rotation.y = (P.atkN === 1 ? -1 : 1) * (0.7 - u * 1.4);
+      rig.arc.scale.setScalar(P.atkN === 2 ? 1.2 : 1);
+    }
+    rig.armR.rotation.x = arm; rig.arc.material.opacity = arcO;
+    rig.g.position.copy(P.pos); rig.g.rotation.y = P.yaw;
+    rig.g.rotation.x = P.dodgeT >= 0 ? 0.55 : s01 * 0.16;
+    const iframe = P.dodgeT >= T.iStart && P.dodgeT <= T.iEnd;
+    rig.circuit.color.setHex(iframe ? 0xffffff : 0x37e6ff);
+    rig.g.visible = !(P.inv > 0 && P.dodgeT < 0 && Math.floor(game.time * 20) % 2 === 0);
+    const gy = groundUnder(P.pos.x, P.pos.z, P.pos.y + 0.05).y;
+    playerBlob.visible = gy > -50; playerBlob.position.set(P.pos.x, gy + 0.03, P.pos.z);
+    const bs = Math.max(0.35, 1 - (P.pos.y - gy) * 0.18); playerBlob.scale.set(bs, bs, bs);
+  }
+
+  // ------------------------------------------------------------------ enemies
+  function releaseToken(e) { if (e.hasToken) { e.hasToken = false; game.tokens = Math.max(0, game.tokens - 1); } }
+  function updateEnemies(dt) {
+    for (const e of enemies) {
+      const m = e.m;
+      if (e.dead) {
+        e.t += dt; e.fade = Math.max(0, 1 - e.t / 0.5);
+        m.g.scale.set(1 + e.t, e.fade, 1 + e.t); m.bodyMat.opacity = e.fade; m.eyeMat.opacity = e.fade; m.bar.visible = false;
+        e.blob.visible = false; if (e.fade <= 0) m.g.visible = false;
+        continue;
+      }
+      const here = e.state === world.state;
+      m.bodyMat.opacity = here ? 1 : 0.14; m.eyeMat.opacity = here ? 1 : 0.2; e.blob.visible = here;
+      m.g.position.copy(e.pos); m.g.rotation.y = e.yaw; e.blob.position.set(e.pos.x, e.pos.y + 0.03, e.pos.z);
+      m.bar.quaternion.copy(m.g.quaternion).invert().multiply(camera.quaternion);
+      m.barFill.scale.x = Math.max(0.001, e.hp / e.maxHp); m.barFill.position.x = -0.45 * (1 - e.hp / e.maxHp);
+      if (!here) { m.ring.material.opacity = 0; continue; }
+
+      const dx = P.pos.x - e.pos.x, dz = P.pos.z - e.pos.z, dist = Math.hypot(dx, dz);
+      const sameLevel = Math.abs(P.pos.y - e.pos.y) < 2.2;
+      const toYaw = Math.atan2(dx, dz);
+      const turn = (rate) => { let d = toYaw - e.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); e.yaw += Math.max(-rate * dt, Math.min(rate * dt, d)); };
+      if (e.flash > 0) { e.flash -= dt; m.bodyMat.color.setHex(0xffffff); } else m.bodyMat.color.copy(m.baseColor);
+
+      // Knockback, kept inside the enemy's home area.
+      e.pos.x += e.kb.x * dt; e.pos.z += e.kb.z * dt; e.kb.multiplyScalar(Math.max(0, 1 - 7 * dt));
+      const hx = e.pos.x - e.home.x, hz = e.pos.z - e.home.z, hd = Math.hypot(hx, hz);
+      if (hd > e.homeR) { e.pos.x = e.home.x + hx / hd * e.homeR; e.pos.z = e.home.z + hz / hd * e.homeR; }
+      resolveWalls(e.pos, 0.45, 1.9, true);
+
+      if (e.mode === 'stagger') { e.t -= dt; if (e.t <= 0) e.mode = 'chase'; continue; }
+      if (e.mode === 'idle') { if (dist < 13 && sameLevel) e.mode = 'chase'; continue; }
+      if (e.mode === 'chase') {
+        turn(7);
+        const homeDist = Math.hypot(P.pos.x - e.home.x, P.pos.z - e.home.z);
+        if (dist > 19 || homeDist > e.homeR + 6) { e.mode = 'idle'; continue; }
+        if (dist > 1.75) {
+          const sp = (e.kind === 'revenant' ? 3.9 : 3.3) * dt;
+          e.pos.x += Math.sin(e.yaw) * sp; e.pos.z += Math.cos(e.yaw) * sp;
+        } else if (sameLevel && game.tokens < 2) {
+          e.mode = 'windup'; e.t = e.kind === 'revenant' ? 0.5 : 0.62; e.hasToken = true; game.tokens++; sfx.warn();
+        }
+        // Keep enemies from stacking.
+        for (const o of enemies) {
+          if (o === e || o.dead || o.state !== e.state) continue;
+          const ox = e.pos.x - o.pos.x, oz = e.pos.z - o.pos.z, od = Math.hypot(ox, oz);
+          if (od < 1.1 && od > 1e-4) { e.pos.x += ox / od * (1.1 - od) * 0.5; e.pos.z += oz / od * (1.1 - od) * 0.5; }
+        }
+        continue;
+      }
+      if (e.mode === 'windup') {
+        turn(2.2); e.t -= dt;
+        const total = e.kind === 'revenant' ? 0.5 : 0.62, u = 1 - Math.max(0, e.t) / total;
+        m.ring.material.opacity = 0.35 + 0.6 * u; m.ring.scale.setScalar(0.4 + 2.0 * u);
+        m.g.scale.set(1, 1 + 0.12 * u, 1);
+        if (e.t <= 0) {
+          m.ring.material.opacity = 0; m.g.scale.set(1, 1, 1);
+          let a = toYaw - e.yaw; a = Math.atan2(Math.sin(a), Math.cos(a));
+          if (dist < 2.4 && Math.abs(a) < 1.1 && sameLevel) {
+            const iframe = P.dodgeT >= T.iStart && P.dodgeT <= T.iEnd;
+            if (iframe) { game.slowMo = 0.55; pulse($('perfect'), 1, 700); sfx.perfect(); }
+            else hurtPlayer(e.kind === 'revenant' ? 22 : 18, e.pos.x, e.pos.z);
+          }
+          e.pos.x += Math.sin(e.yaw) * 0.5; e.pos.z += Math.cos(e.yaw) * 0.5;
+          releaseToken(e); e.mode = 'recover'; e.t = 0.85;
+        }
+        continue;
+      }
+      if (e.mode === 'recover') { e.t -= dt; if (e.t <= 0) e.mode = 'chase'; }
+    }
+  }
+
+  function updateShards(dt, time) {
+    for (const s of shards) {
+      if (s.taken) continue;
+      const here = s.state === 'both' || s.state === world.state;
+      s.m.g.position.set(s.pos.x, s.pos.y + Math.sin(time * 2 + s.pos.x) * 0.12, s.pos.z);
+      s.m.core.rotation.y += dt * 1.8; s.m.mat.opacity = here ? 1 : 0.16; s.m.halo.material.opacity = here ? 0.6 : 0.08;
+    }
+  }
+
+  // ------------------------------------------------------------------ camera and palette
+  const pivot = new THREE.Vector3(0, 1.5, -22), camDir = new THREE.Vector3();
+  function updateCamera(dt, look) {
+    if (look) {
+      cam.yaw -= look.x * 0.0052; cam.pitch = Math.max(-0.25, Math.min(1.25, cam.pitch + look.y * 0.004));
+      cam.idle = (look.x || look.y) ? 0 : cam.idle + dt;
+      // Follow assist: only while moving, only after the look input has been idle, never when running at the camera.
+      const sp = Math.hypot(P.vel.x, P.vel.z);
+      if (cam.idle > 1.2 && sp > 1.5) {
+        let d = Math.atan2(P.vel.x, P.vel.z) - cam.yaw; d = Math.atan2(Math.sin(d), Math.cos(d));
+        if (Math.abs(d) > 0.04 && Math.abs(d) < 2.4) cam.yaw += Math.sign(d) * Math.min(Math.abs(d), 0.95 * Math.min(1, Math.abs(d)) * dt);
+      }
+      const f = 1 - Math.exp(-18 * dt), fy = 1 - Math.exp(-9 * dt);
+      pivot.x += (P.pos.x - pivot.x) * f; pivot.z += (P.pos.z - pivot.z) * f; pivot.y += (P.pos.y + 1.5 - pivot.y) * fy;
+    }
+    const cp = Math.cos(cam.pitch);
+    camDir.set(-Math.sin(cam.yaw) * cp, Math.sin(cam.pitch), -Math.cos(cam.yaw) * cp);
+    const want = rayFree(pivot, camDir, 6.2) - 0.25;
+    cam.dist = want < cam.dist ? Math.max(0.8, want) : cam.dist + (Math.min(6.2, want) - cam.dist) * (1 - Math.exp(-5 * dt));
+    camera.position.copy(pivot).addScaledVector(camDir, cam.dist);
+    if (cam.shake > 0.001) {
+      camera.position.x += (Math.random() - 0.5) * cam.shake; camera.position.y += (Math.random() - 0.5) * cam.shake;
+      cam.shake *= Math.max(0, 1 - 9 * dt);
+    }
+    camera.lookAt(pivot);
+  }
+  const colA = new THREE.Color();
+  function applyPalette(t) {
+    const a = PAL.present, b = PAL.echo;
+    colA.copy(a.bg).lerp(b.bg, t); scene.background.copy(colA); scene.fog.color.copy(colA);
+    hemi.color.copy(a.sky).lerp(b.sky, t); hemi.groundColor.copy(a.ground).lerp(b.ground, t); sun.color.copy(a.sun).lerp(b.sun, t);
+  }
+
+  function win() {
+    game.won = true; sfx.win();
+    const s = Math.floor(game.time);
+    $('winTime').textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+    $('winKills').textContent = game.kills; $('winFalls').textContent = game.falls;
+    setTimeout(() => { $('win').hidden = false; setControls(false); }, 900);
+  }
+
+  // ------------------------------------------------------------------ input
+  const touchEl = $('touch'), stickEl = $('stick'), knobEl = $('knob');
+  let stickId = null, lookId = null, stickX = 0, stickY = 0, lookX = 0, lookY = 0, lookDX = 0, lookDY = 0, usedTouch = false;
+  touchEl.addEventListener('pointerdown', (e) => {
+    if (!game.started || game.won) return;
+    e.preventDefault();
+    try { touchEl.setPointerCapture(e.pointerId); } catch (err) { /* capture is optional */ }
+    const r = touchEl.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+    if (e.pointerType !== 'mouse') { usedTouch = true; $('stickHint').hidden = true; }
+    if (e.pointerType !== 'mouse' && x < r.width * 0.45 && stickId === null) {
+      stickId = e.pointerId; stickX = x; stickY = y;
+      stickEl.style.left = x + 'px'; stickEl.style.top = y + 'px'; knobEl.style.transform = 'translate(0px, 0px)'; stickEl.hidden = false;
+    } else if (lookId === null) { lookId = e.pointerId; lookX = e.clientX; lookY = e.clientY; }
+  });
+  touchEl.addEventListener('pointermove', (e) => {
+    if (e.pointerId === stickId) {
+      const r = touchEl.getBoundingClientRect();
+      let dx = e.clientX - r.left - stickX, dy = e.clientY - r.top - stickY;
+      const R = 52, d = Math.hypot(dx, dy);
+      if (d > R) { dx *= R / d; dy *= R / d; }
+      knobEl.style.transform = 'translate(' + dx + 'px, ' + dy + 'px)';
+      const m = Math.hypot(dx, dy) / R, dead = 0.14;
+      const s = m <= dead ? 0 : (m - dead) / (1 - dead) / m;
+      input.mx = dx / R * s; input.my = -dy / R * s;
+    } else if (e.pointerId === lookId) { lookDX += e.clientX - lookX; lookDY += e.clientY - lookY; lookX = e.clientX; lookY = e.clientY; }
+  });
+  const endPointer = (e) => {
+    if (e.pointerId === stickId) { stickId = null; input.mx = 0; input.my = 0; stickEl.hidden = true; }
+    if (e.pointerId === lookId) lookId = null;
+  };
+  touchEl.addEventListener('pointerup', endPointer); touchEl.addEventListener('pointercancel', endPointer);
+  touchEl.addEventListener('contextmenu', (e) => e.preventDefault());
+
+  function bindButton(id, onDown, onUp) {
+    const el = $(id);
+    el.addEventListener('pointerdown', (e) => { e.preventDefault(); el.classList.add('down'); onDown(); });
+    const up = () => { el.classList.remove('down'); if (onUp) onUp(); };
+    el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up); el.addEventListener('pointerleave', up);
+    el.addEventListener('contextmenu', (e) => e.preventDefault());
+  }
+  bindButton('bAttack', () => { input.attack = true; });
+  bindButton('bJump', () => { input.jump = true; input.jumpHeld = true; }, () => { input.jumpHeld = false; });
+  bindButton('bDodge', () => { input.dodge = true; });
+  bindButton('bEcho', () => { input.echo = true; });
+
+  window.addEventListener('keydown', (e) => {
+    if (!game.started) return;
+    if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
+    if (e.repeat) return;
+    input.keys[e.code] = true;
+    if (e.code === 'Space') { input.jump = true; input.jumpHeld = true; }
+    if (e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyK') input.dodge = true;
+    if (e.code === 'KeyJ' || e.code === 'KeyF') input.attack = true;
+    if (e.code === 'KeyE' || e.code === 'KeyQ') input.echo = true;
+  });
+  window.addEventListener('keyup', (e) => { input.keys[e.code] = false; if (e.code === 'Space') input.jumpHeld = false; });
+  window.addEventListener('blur', () => { input.keys = {}; input.jumpHeld = false; });
+
+  function setControls(on) {
+    $('hud').hidden = !on; $('pad').hidden = !on;
+    $('stickHint').hidden = !on || usedTouch || !matchMedia('(pointer: coarse)').matches;
+    if (!on) { stickEl.hidden = true; stickId = null; lookId = null; input.mx = 0; input.my = 0; }
+  }
+  function begin() {
+    if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (err) { actx = null; } }
+    if (actx && actx.state === 'suspended') actx.resume();
+    reset(); game.started = true; $('start').hidden = true; $('win').hidden = true; setControls(true);
+    toast('Find the five shards. Shift to Echo when the way is shut.', 4.5);
+  }
+  $('beginBtn').addEventListener('click', begin);
+  $('againBtn').addEventListener('click', begin);
+  $('soundBtn').addEventListener('click', () => { soundOn = !soundOn; $('soundBtn').textContent = soundOn ? 'Sound on' : 'Sound off'; });
+
+  // ------------------------------------------------------------------ loop
+  function resize() {
+    const w = canvas.clientWidth || 1, h = canvas.clientHeight || 1;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h; camera.fov = w >= h ? 60 : 78; camera.updateProjectionMatrix();
+    $('startNote').hidden = w >= h;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+  spawnEntities();
+
+  let last = performance.now(), wall = 0;
+  function frame(now) {
+    requestAnimationFrame(frame);
+    let dt = Math.min(0.05, (now - last) / 1000); last = now;
+    if (document.hidden) return;
+    wall += dt;
+    if (toastTimer > 0) { toastTimer -= dt; if (toastTimer <= 0) $('toast').classList.remove('on'); }
+
+    if (game.started && !game.won) {
+      if (game.hitStop > 0) { game.hitStop -= dt; dt *= 0.05; }
+      else if (game.slowMo > 0) { game.slowMo -= dt; dt *= 0.3; }
+      game.time += dt;
+      world.shiftCd = Math.max(0, world.shiftCd - dt);
+      $('bEcho').classList.toggle('cool', world.shiftCd > 0);
+      $('bDodge').classList.toggle('cool', P.dodgeCd > 0 || P.dodgeT >= 0);
+      updatePlayer(dt);
+      updateEnemies(dt);
+      const look = { x: lookDX, y: lookDY }; lookDX = 0; lookDY = 0;
+      updateCamera(dt, look);
+    } else {
+      // Attract mode: a slow orbit of the district behind the title.
+      cam.yaw = wall * 0.12; cam.pitch = 0.42; pivot.set(0, 2, -4);
+      updateEnemies(0); rig.g.position.copy(P.pos); rig.g.rotation.y = P.yaw;
+      playerBlob.position.set(P.pos.x, 0.03, P.pos.z);
+      const cp = Math.cos(cam.pitch);
+      camera.position.set(pivot.x - Math.sin(cam.yaw) * cp * 30, pivot.y + Math.sin(cam.pitch) * 30, pivot.z - Math.cos(cam.yaw) * cp * 30);
+      camera.lookAt(pivot);
+    }
+    input.jump = input.dodge = input.attack = input.echo = false;
+
+    const target = world.state === 'echo' ? 1 : 0;
+    if (world.blend !== target) { world.blend += Math.sign(target - world.blend) * Math.min(Math.abs(target - world.blend), dt / 0.35); applyPalette(world.blend); }
+    updateShards(dt, wall);
+    renderer.render(scene, camera);
+  }
+  requestAnimationFrame(frame);
+
+  // Minimal handle for automated smoke tests.
+  window.__nr = { P, cam, world, game, input, get enemies() { return enemies; }, get shards() { return shards; }, begin, tryShift, solids };
+})();
+</script>
