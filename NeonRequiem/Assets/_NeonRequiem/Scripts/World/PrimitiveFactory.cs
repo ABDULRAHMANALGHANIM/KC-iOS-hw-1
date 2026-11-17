@@ -9,6 +9,24 @@ namespace NeonRequiem.World
     /// </summary>
     public static class PrimitiveFactory
     {
+        /// <summary>
+        /// GameObject.CreatePrimitive adds these components by name inside the engine. Player
+        /// builds strip engine classes that no script or asset references, which would make the
+        /// primitives come out without meshes or colliders on a device. Referencing the types
+        /// here (together with Assets/_NeonRequiem/link.xml) keeps them in the build.
+        /// </summary>
+        private static readonly System.Type[] k_PrimitiveComponents =
+        {
+            typeof(MeshFilter),
+            typeof(MeshRenderer),
+            typeof(BoxCollider),
+            typeof(SphereCollider),
+            typeof(CapsuleCollider),
+        };
+
+        /// <summary>Number of engine component types primitives depend on (kept alive for build stripping).</summary>
+        public static int RequiredComponentCount => k_PrimitiveComponents.Length;
+
         /// <summary>Creates a primitive. Its collider is removed unless <paramref name="solid"/> is set.</summary>
         public static GameObject Create(
             PrimitiveType type,

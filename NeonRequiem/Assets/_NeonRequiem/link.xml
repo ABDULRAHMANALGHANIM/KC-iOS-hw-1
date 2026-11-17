@@ -1,0 +1,20 @@
+<!--
+  Managed/engine code stripping rules.
+  Phase 0-1 content is assembled at runtime from GameObject.CreatePrimitive, which adds the
+  components below by name inside the engine. Nothing in a built scene references them, so
+  without these rules a player build could strip them and primitives would lose their meshes
+  or colliders on a device. Remove an entry once authored prefabs reference the type.
+-->
+<linker>
+  <assembly fullname="UnityEngine.CoreModule">
+    <type fullname="UnityEngine.MeshFilter" preserve="all" />
+    <type fullname="UnityEngine.MeshRenderer" preserve="all" />
+    <type fullname="UnityEngine.Light" preserve="all" />
+  </assembly>
+  <assembly fullname="UnityEngine.PhysicsModule">
+    <type fullname="UnityEngine.BoxCollider" preserve="all" />
+    <type fullname="UnityEngine.SphereCollider" preserve="all" />
+    <type fullname="UnityEngine.CapsuleCollider" preserve="all" />
+    <type fullname="UnityEngine.CharacterController" preserve="all" />
+  </assembly>
+</linker>
